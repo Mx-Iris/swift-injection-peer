@@ -1,5 +1,5 @@
 {
-  "originHash" : "442a0672480a87e0c7605936a00c9b22f8f422e7b2a905b34243e69416b7dd6e",
+  "originHash" : "113474d93e1c3ee0d4dd1d489e9149ecce27ccd20915bb33b49b634d000bc19a",
   "pins" : [
     {
       "identity" : "frameworktoolbox",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "c87146b7f3ab69aebb461c1128f4326e462a6fbc",
         "version" : "0.15.0"
+      }
+    },
+    {
+      "identity" : "machinjector",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MxIris-Reverse-Engineering/MachInjector",
+      "state" : {
+        "revision" : "1aab1373d14f7566d1ccd31e6bbe56410a81af83",
+        "version" : "0.6.1"
       }
     },
     {

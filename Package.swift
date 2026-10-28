@@ -2,64 +2,15 @@
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
-import Foundation
 
-func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
-    let value = Context.environment[key]
-    guard let value else {
-        return defaultValue
-    }
-    if value == "1" {
-        return true
-    } else if value == "0" {
-        return false
-    } else {
-        return defaultValue
-    }
-}
+// No `local:` / `remote:` dependency switch here, unlike swift-helper-service. That helper picks a
+// local checkout only when `USING_LOCAL_DEPENDENCIES` is set and falls back to a published version
+// otherwise — and this package has no version to fall back to: it can only resolve against a
+// swift-helper-service that has already moved these targets out, which exists on one branch and in
+// no release. A conditional switch here silently resolved to a non-existent version for any
+// consumer that did not set the variable, which is how `RunScript.sh` failed. Reintroduce the
+// helper when this package and that branch are both released.
 
-let usingLocalDependencies = envEnable("USING_LOCAL_DEPENDENCIES")
-
-extension Package.Dependency {
-    enum LocalSearchPath {
-        /// - Parameter name: Pass this when the directory's basename is not the package name.
-        ///   SwiftPM derives a path dependency's identity from the basename, so a checkout under
-        ///   `.worktrees/<project>-<suffix>/` resolves to that directory name and every
-        ///   `package:` reference spelled with the real package name fails. Carried over from
-        ///   ViewHierarchyCapture, which hit exactly this.
-        case package(path: String, isRelative: Bool, isEnabled: Bool = usingLocalDependencies, name: String? = nil, traits: Set<PackageDescription.Package.Dependency.Trait> = [.defaults])
-    }
-
-    static func package(local localSearchPaths: LocalSearchPath..., remote: Package.Dependency) -> Package.Dependency {
-        let currentFilePath = #filePath
-        let isClonedDependency = currentFilePath.contains("/checkouts/") ||
-            currentFilePath.contains("/SourcePackages/") ||
-            currentFilePath.contains("/.build/")
-
-        if isClonedDependency {
-            return remote
-        }
-        for local in localSearchPaths {
-            switch local {
-            case .package(let path, let isRelative, let isEnabled, let name, let traits):
-                guard isEnabled else { continue }
-                let url = if isRelative {
-                    URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: #filePath))
-                } else {
-                    URL(fileURLWithPath: path)
-                }
-
-                if FileManager.default.fileExists(atPath: url.path) {
-                    if let name {
-                        return .package(name: name, path: url.path)
-                    }
-                    return .package(path: url.path, traits: traits)
-                }
-            }
-        }
-        return remote
-    }
-}
 
 let package = Package(
     name: "swift-injection-peer",
@@ -90,21 +41,25 @@ let package = Package(
         //
         // The arrow points this way and only this way. A consumer depends on both, which is not
         // a cycle; swift-helper-service must never depend on this library.
-        // Pointed at the `feature/shared-injection-daemon` worktree, not the main checkout: this
-        // package can only resolve against a swift-helper-service that has *already* moved these
-        // targets out. SPM requires target names to be unique across the whole package graph, so
-        // for as long as that library still declares `HelperPeer`, resolving both is an error.
-        // **Switch to a version requirement once that branch lands and ships.**
+        //
+        // An unconditional path, not a local/remote pair, and **not** gated on
+        // `USING_LOCAL_DEPENDENCIES`: there is nothing to fall back to. This package can only
+        // resolve against a swift-helper-service that has *already* moved these targets out,
+        // because SPM requires target names to be unique across the whole package graph — for as
+        // long as that library still declares `HelperPeer`, resolving both is an error. The only
+        // checkout where that is true is the `feature/shared-injection-daemon` worktree; the
+        // version a `remote:` would name does not exist yet. Making it conditional meant a
+        // consumer that did not happen to set that variable resolved to the non-existent version
+        // instead, which is how `RunScript.sh` failed.
+        //
+        // `name:` is required, not decoration: SwiftPM derives a path dependency's identity from
+        // the directory's basename, which here is the worktree name.
+        //
+        // **Switch to a version requirement once that branch lands and ships** — that is also
+        // what makes this package usable from its own GitHub remote.
         .package(
-            local: .package(
-                path: "/Volumes/Repositories/Private/Personal/Library/macOS/swift-helper-service/.worktrees/swift-helper-service-SharedInjectionDaemon",
-                isRelative: false,
-                name: "swift-helper-service",
-            ),
-            remote: .package(
-                url: "https://github.com/Mx-Iris/swift-helper-service",
-                from: "0.4.0",
-            ),
+            name: "swift-helper-service",
+            path: "/Volumes/Repositories/Private/Personal/Library/macOS/swift-helper-service/.worktrees/swift-helper-service-SharedInjectionDaemon"
         ),
         .package(
             url: "https://github.com/MxIris-macOS-Library-Forks/SwiftyXPC",
