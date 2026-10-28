@@ -306,14 +306,41 @@ public actor PeerSocketChannel: PeerMessaging {
             )
         } catch {
             let failure = PeerSocketFailure(description: error.localizedDescription)
+            var failureBody = Data()
+            do {
+                failureBody = try JSONEncoder().encode(failure)
+            } catch {
+                // An empty body still stops the caller waiting, which matters more than the
+                // description — the far side already treats an undecodable failure body as a
+                // bare failure.
+                #log(.error, "Could not encode a peer socket failure: \(String(describing: error), privacy: .public)")
+            }
             reply = PeerSocketMessage(
                 kind: .failure,
                 correlationIdentifier: request.correlationIdentifier,
                 identifier: "",
-                body: (try? JSONEncoder().encode(failure)) ?? Data()
+                body: failureBody
             )
         }
-        try? await transmit(reply)
+
+        // Reported, not discarded. A reply that cannot be sent leaves the caller waiting out its
+        // whole timeout with nothing to go on, while the cause is knowable right here — a body
+        // too large to frame, or a connection that went away. Measured once: a capture whose
+        // response exceeded ``PeerSocketFraming/maximumBodyLength`` surfaced only as the caller's
+        // timeout, with not one line in this subsystem's log to say so.
+        do {
+            try await transmit(reply)
+        } catch {
+            #log(
+                .error,
+                """
+                Could not send the \(reply.kind.rawValue, privacy: .public) for correlation \
+                \(reply.correlationIdentifier, privacy: .public), \
+                \(reply.body.count, privacy: .public) bytes: \
+                \(String(describing: error), privacy: .public)
+                """
+            )
+        }
     }
 
     // MARK: - Sending
