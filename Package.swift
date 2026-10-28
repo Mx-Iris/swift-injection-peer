@@ -2,15 +2,56 @@
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
+import Foundation
 
-// No `local:` / `remote:` dependency switch here, unlike swift-helper-service. That helper picks a
-// local checkout only when `USING_LOCAL_DEPENDENCIES` is set and falls back to a published version
-// otherwise — and this package has no version to fall back to: it can only resolve against a
-// swift-helper-service that has already moved these targets out, which exists on one branch and in
-// no release. A conditional switch here silently resolved to a non-existent version for any
-// consumer that did not set the variable, which is how `RunScript.sh` failed. Reintroduce the
-// helper when this package and that branch are both released.
+func envEnable(_ key: String, default defaultValue: Bool = false) -> Bool {
+    let value = Context.environment[key]
+    guard let value else {
+        return defaultValue
+    }
+    if value == "1" {
+        return true
+    } else if value == "0" {
+        return false
+    } else {
+        return defaultValue
+    }
+}
 
+let usingLocalDependencies = envEnable("USING_LOCAL_DEPENDENCIES")
+
+extension Package.Dependency {
+    enum LocalSearchPath {
+        case package(path: String, isRelative: Bool, isEnabled: Bool = usingLocalDependencies, traits: Set<PackageDescription.Package.Dependency.Trait> = [.defaults])
+    }
+
+    static func package(local localSearchPaths: LocalSearchPath..., remote: Package.Dependency) -> Package.Dependency {
+        let currentFilePath = #filePath
+        let isClonedDependency = currentFilePath.contains("/checkouts/") ||
+            currentFilePath.contains("/SourcePackages/") ||
+            currentFilePath.contains("/.build/")
+
+        if isClonedDependency {
+            return remote
+        }
+        for local in localSearchPaths {
+            switch local {
+            case .package(let path, let isRelative, let isEnabled, let traits):
+                guard isEnabled else { continue }
+                let url = if isRelative {
+                    URL(fileURLWithPath: path, relativeTo: URL(fileURLWithPath: #filePath))
+                } else {
+                    URL(fileURLWithPath: path)
+                }
+
+                if FileManager.default.fileExists(atPath: url.path) {
+                    return .package(path: url.path, traits: traits)
+                }
+            }
+        }
+        return remote
+    }
+}
 
 let package = Package(
     name: "swift-injection-peer",
@@ -42,24 +83,34 @@ let package = Package(
         // The arrow points this way and only this way. A consumer depends on both, which is not
         // a cycle; swift-helper-service must never depend on this library.
         //
-        // An unconditional path, not a local/remote pair, and **not** gated on
-        // `USING_LOCAL_DEPENDENCIES`: there is nothing to fall back to yet. This package can only
-        // resolve against a swift-helper-service that has *already* moved these targets out,
-        // because SPM requires target names to be unique across the whole package graph — for as
-        // long as that library still declares `HelperPeer`, resolving both is an error. That is
-        // now true of its `main`, which is what this points at; the version a `remote:` would name
-        // still does not exist. Making it conditional meant a consumer that did not happen to set
-        // that variable resolved to the non-existent version instead, which is how
-        // `RunScript.sh` failed.
+        // The floor is 0.4.0 — the release that moved `HelperPeer` and the endpoint registry out
+        // to this package. Anything earlier still declares `HelperPeer` itself, and SPM requires
+        // target names to be unique across the whole package graph, so resolving both at once
+        // fails outright.
         //
-        // **Switch to a version requirement once swift-helper-service ships a release** — that is
-        // also what makes this package usable from its own GitHub remote by anyone else.
+        // The `local:` pair is back now that there is a published version to fall back to. It was
+        // deliberately absent while there was not: a consumer that happened not to set
+        // `USING_LOCAL_DEPENDENCIES` resolved to a version that had never shipped, which is how
+        // `RunScript.sh` failed. The local candidate is relative, not absolute, so it holds on any
+        // machine where the two checkouts are siblings.
+        //
+        // `SwiftyXPC` and `FrameworkToolbox` below get no local candidate on purpose — they are
+        // shared with swift-helper-service, and a root package resolving one of them to a path
+        // while a checked-out dependency resolves it to a URL is the same identity from two source
+        // locations, which SPM rejects.
         .package(
-            path: "/Volumes/Repositories/Private/Personal/Library/macOS/swift-helper-service"
+            local: .package(
+                path: "../swift-helper-service",
+                isRelative: true,
+            ),
+            remote: .package(
+                url: "https://github.com/Mx-Iris/swift-helper-service",
+                from: "0.4.0",
+            ),
         ),
         .package(
             url: "https://github.com/MxIris-macOS-Library-Forks/SwiftyXPC",
-            from: "0.5.104",
+            from: "0.5.105",
         ),
         .package(
             url: "https://github.com/Mx-Iris/FrameworkToolbox",
