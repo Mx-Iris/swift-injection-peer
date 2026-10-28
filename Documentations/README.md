@@ -1,7 +1,8 @@
 # 文档索引
 
 `swift-injection-peer` 的文档。面向使用者的说明在仓库根的
-[README.md](../README.md)，面向 coding agent 的速查表在 [AGENTS.md](../AGENTS.md)。
+[README.md](../README.md) 与 [CHANGELOG.md](../CHANGELOG.md)，面向 coding agent 的速查表在
+[AGENTS.md](../AGENTS.md)。
 
 ## 愿景
 
@@ -21,7 +22,8 @@ MediaRemoteWizard、HopperMCP 各自手写过一遍。
 见 [Evolutions/README.md](Evolutions/README.md)。
 
 本库成立本身的论证不在这里，而在 `swift-helper-service` 的提案
-*共享 daemon 只管注入，回传通道移到独立库* 里 —— 那份提案决定了「搬出去、搬到哪、谁还挂注册表」。
+`Documentations/Evolutions/0004-daemon-only-injects.md`（共享 daemon 只管注入，回传通道移到
+独立库）里 —— 那份提案决定了「搬出去、搬到哪、谁还挂注册表」。
 本库自己的提案从 API 设计开始（例如要不要收拢 `PeerLink` 的两条入口、端口碰撞要不要做候选序列）。
 
 ## 实现说明

@@ -28,6 +28,8 @@ four consumers (RuntimeViewer, InjectionScaffold's template, InjectionPlatform, 
 - Swift toolchain 6.2; platforms macOS 10.15+ / macCatalyst 13+. Nearly every source file is wrapped
   in `#if os(macOS) || targetEnvironment(macCatalyst)`; the registry service uses a bare
   `#if os(macOS)` to exclude macCatalyst.
+- `CHANGELOG.md` is public-facing and written in English. Record source-breaking changes explicitly,
+  with the compiler error a downstream project will see.
 
 ## Architecture
 
