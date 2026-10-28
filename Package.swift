@@ -43,23 +43,19 @@ let package = Package(
         // a cycle; swift-helper-service must never depend on this library.
         //
         // An unconditional path, not a local/remote pair, and **not** gated on
-        // `USING_LOCAL_DEPENDENCIES`: there is nothing to fall back to. This package can only
+        // `USING_LOCAL_DEPENDENCIES`: there is nothing to fall back to yet. This package can only
         // resolve against a swift-helper-service that has *already* moved these targets out,
         // because SPM requires target names to be unique across the whole package graph — for as
-        // long as that library still declares `HelperPeer`, resolving both is an error. The only
-        // checkout where that is true is the `feature/shared-injection-daemon` worktree; the
-        // version a `remote:` would name does not exist yet. Making it conditional meant a
-        // consumer that did not happen to set that variable resolved to the non-existent version
-        // instead, which is how `RunScript.sh` failed.
+        // long as that library still declares `HelperPeer`, resolving both is an error. That is
+        // now true of its `main`, which is what this points at; the version a `remote:` would name
+        // still does not exist. Making it conditional meant a consumer that did not happen to set
+        // that variable resolved to the non-existent version instead, which is how
+        // `RunScript.sh` failed.
         //
-        // `name:` is required, not decoration: SwiftPM derives a path dependency's identity from
-        // the directory's basename, which here is the worktree name.
-        //
-        // **Switch to a version requirement once that branch lands and ships** — that is also
-        // what makes this package usable from its own GitHub remote.
+        // **Switch to a version requirement once swift-helper-service ships a release** — that is
+        // also what makes this package usable from its own GitHub remote by anyone else.
         .package(
-            name: "swift-helper-service",
-            path: "/Volumes/Repositories/Private/Personal/Library/macOS/swift-helper-service/.worktrees/swift-helper-service-SharedInjectionDaemon"
+            path: "/Volumes/Repositories/Private/Personal/Library/macOS/swift-helper-service"
         ),
         .package(
             url: "https://github.com/MxIris-macOS-Library-Forks/SwiftyXPC",
